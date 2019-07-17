@@ -2577,6 +2577,35 @@ def certificateUpdate(host, args, session):
         else:
             print("Update complete.")
 
+def certificateDelete(host, args, session):
+    """
+         Called by certificate management function to delete certificate
+         Example:
+         certificate delete server https
+         certificate delete authority ldap
+         certificate delete client ldap
+         @param host: string, the hostname or IP address of the bmc
+         @param args: contains additional arguments used by the certificate delete sub command
+         @param session: the active session to use
+    """
+    if redfishSupportPresent(host, session):
+        return "Not supported";
+    httpHeader = {'Content-Type': 'multipart/form-data'}
+    httpHeader.update(xAuthHeader)
+    url = "https://" + host + "/xyz/openbmc_project/certs/" + args.type.lower() + "/" + args.service.lower()
+    print("Deleting certificate url=" + url)
+    try:
+        resp = session.delete(url, headers=httpHeader)
+    except(requests.exceptions.Timeout):
+        return(connectionErrHandler(args.json, "Timeout", None))
+    except(requests.exceptions.ConnectionError) as err:
+        return connectionErrHandler(args.json, "ConnectionError", err)
+    if resp.status_code != 200:
+        print(resp.text)
+        return "Failed to delete the certificate"
+    else:
+       print("Delete complete.")
+
 def certificateDisplay(host, args, session):
     """
          Called by certificate management function. display server/client/
@@ -2590,8 +2619,9 @@ def certificateDisplay(host, args, session):
                       display sub command
          @param session: the active session to use
     """
-
-    httpHeader = {'Content-Type': 'application/octet-stream'}
+    if redfishSupportPresent(host, session):
+        return "Not supported";
+    httpHeader = {'Content-Type': 'multipart/form-data'}
     httpHeader.update(xAuthHeader)
     if(args.type.lower() == 'server'):
         url = "https://" + host + \
