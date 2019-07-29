@@ -2750,7 +2750,7 @@ def certificateGenerateCSR(host, args, session):
             "KeyBitLength":int(args.keyBitLength), "KeyCurveId":args.keyCurveId,
             "AlternativeNames":alt_name_list, "ContactPerson":args.contactPerson,
             "Email":args.email, "GivenName":args.givenname, "Initials":args.initials,
-            "KeyUsage":usage_list, "Surname":args.surname,
+            "KeyUsage":usage_list, "Surname":args.surname, 
             "UnstructuredName":args.unstructuredname}
         resp = session.post(generateCSRUrl, headers=httpHeader,
             json=data, verify=False)
@@ -4079,15 +4079,52 @@ def createCommandParser():
     certMgmt_subproc = parser_cert.add_subparsers(title='subcommands', description='valid certificate commands', help='sub-command help', dest='command')
 
     certUpdate = certMgmt_subproc.add_parser('update', help="Update the certificate")
-    certUpdate.add_argument('type', choices=['server', 'client', 'authority'], help="certificate type to update")
-    certUpdate.add_argument('service', choices=['https', 'ldap'], help="Service to update")
-    certUpdate.add_argument('-f', '--fileloc', required=True, help="The absolute path to the certificate file")
+    certUpdate.add_argument('type', choices=['server', 'client', 'authority'],
+        help="certificate type to upload")
+    certUpdate.add_argument('-f', '--fileloc', required=True,
+        help="The absolute path to the certificate file")
     certUpdate.set_defaults(func=certificateUpdate)
 
-    certDelete = certMgmt_subproc.add_parser('delete', help="Delete the certificate")
-    certDelete.add_argument('type', choices=['server', 'client', 'authority'], help="certificate type to delete")
-    certDelete.add_argument('service', choices=['https', 'ldap'], help="Service to delete the certificate")
-    certDelete.set_defaults(func=certificateDelete)
+    certReplace = certMgmt_subproc.add_parser('replace',
+        help="Replace the certificate")
+    certReplace.add_argument('type', choices=['server', 'client', 'authority'],
+        help="certificate type to replace")
+    certReplace.add_argument('-f', '--fileloc', required=True,
+        help="The absolute path to the certificate file")
+    certReplace.set_defaults(func=certificateReplace)
+
+    certDisplay = certMgmt_subproc.add_parser('display',
+        help="Print the certificate")
+    certDisplay.add_argument('type', choices=['server', 'client', 'authority'],
+        help="certificate type to display")
+    certDisplay.set_defaults(func=certificateDisplay)
+
+    certLocations = certMgmt_subproc.add_parser('locations',
+        help="Certificate list")
+    certLocations.set_defaults(func=certificateLocations)
+
+    certGenerateCSR = certMgmt_subproc.add_parser('generatecsr', help="Generate CSR")
+    certGenerateCSR.add_argument('type', choices=['server', 'client', 'authority'],
+        help="Generate CSR")
+    certGenerateCSR.add_argument('city',
+        help="The city or locality of the organization making the request")
+    certGenerateCSR.add_argument('commonName',
+        help="The fully qualified domain name of the component that is being secured.")
+    certGenerateCSR.add_argument('country',
+        help="The country of the organization making the request")
+    certGenerateCSR.add_argument('organization',
+        help="The name of the organization making the request.")
+    certGenerateCSR.add_argument('organizationUnit',
+        help="The name of the unit or division of the organization making the request.")
+    certGenerateCSR.add_argument('state',
+        help="The state, province, or region of the organization making the request.")
+    certGenerateCSR.add_argument('keyPairAlgorithm',  choices=['RSA', 'EC'],
+        help="The type of key pair for use with signing algorithms.")
+    certGenerateCSR.add_argument('keyBitLength',
+        help="The length of the key in bits, if needed based on the value of the 'KeyPairAlgorithm' parameter.")
+    certGenerateCSR.add_argument('keyCurveId',
+        help="The curve ID to be used with the key, if needed based on the value of the 'KeyPairAlgorithm' parameter.")
+    certGenerateCSR.set_defaults(func=certificateGenerateCSR)
 
     certReplace = certMgmt_subproc.add_parser('replace',
         help="Replace the certificate")
