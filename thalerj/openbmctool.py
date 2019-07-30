@@ -2512,34 +2512,53 @@ def remoteLoggingConfig(host, args, session):
         return(connectionErrHandler(args.json, "Timeout", None))
     return res.text
 
+def redfishSupportPresent(host, session):
+    url = "https://" + host + "/redfish/v1"
+    try:
+        resp = session.get(url, headers=jsonHeader, verify=False, timeout=baseTimeout)
+    except(requests.exceptions.Timeout):
+        return False
+    except(requests.exceptions.ConnectionError) as err:
+        return False
+    if resp.status_code != 200:
+        return False
+    else:
+       return True
 
 def certificateUpdate(host, args, session):
     """
          Called by certificate management function. update server/client/authority certificates
          Example:
-         certificate update server -f cert.pem
-         certificate update authority -f Root-CA.pem
-         certificate update client -f cert.pem
+         certificate update server https -f cert.pem
+         certificate update authority ldap -f Root-CA.pem
+         certificate update client ldap -f cert.pem
          @param host: string, the hostname or IP address of the bmc
          @param args: contains additional arguments used by the certificate update sub command
          @param session: the active session to use
     """
-
     httpHeader = {'Content-Type': 'application/octet-stream'}
     httpHeader.update(xAuthHeader)
-    url = "";
-    if(args.type.lower() == 'server'):
-        url = "https://" + host + \
-            "/redfish/v1/Managers/bmc/NetworkProtocol/HTTPS/Certificates"
-    elif(args.type.lower() == 'client'):
-        url = "https://" + host + \
-            "/redfish/v1/AccountService/LDAP/Certificates"
-    elif(args.type.lower() == 'authority'):
-        url = "https://" + host + \
-        "/redfish/v1/Managers/bmc/Truststore/Certificates"
     data = open(args.fileloc, 'rb').read()
     try:
-        resp = session.post(url, headers=httpHeader, data=data, verify=False)
+        if redfishSupportPresent(host, session):
+            url = "";
+            if(args.type.lower() == 'server'):
+                url = "https://" + host + \
+                    "/redfish/v1/Managers/bmc/NetworkProtocol/HTTPS/Certificates"
+            elif(args.type.lower() == 'client'):
+                url = "https://" + host + \
+                    "/redfish/v1/AccountService/LDAP/Certificates"
+            elif(args.type.lower() == 'authority'):
+                url = "https://" + host + \
+                "/redfish/v1/Managers/bmc/Truststore/Certificates"
+            else:
+                return "Unsupported certificate type"
+            resp = session.post(url, headers=httpHeader, data=data,
+                        verify=False)
+        else:
+            url = "https://" + host + "/xyz/openbmc_project/certs/" + \
+                args.type.lower() + "/" + args.service.lower()
+            resp = session.put(url, headers=httpHeader, data=data, verify=False)
     except(requests.exceptions.Timeout):
         return(connectionErrHandler(args.json, "Timeout", None))
     except(requests.exceptions.ConnectionError) as err:
@@ -2548,9 +2567,39 @@ def certificateUpdate(host, args, session):
         print(resp.text)
         return "Failed to update the certificate"
     else:
-       print("Update complete.")
+        print("Update complete.")
+
+def certificateDelete(host, args, session):
+    """
+         Called by certificate management function to delete certificate
+         Example:
+         certificate delete server https
+         certificate delete authority ldap
+         certificate delete client ldap
+         @param host: string, the hostname or IP address of the bmc
+         @param args: contains additional arguments used by the certificate delete sub command
+         @param session: the active session to use
+    """
+    if redfishSupportPresent(host, session):
+        return "Not supported, please use certificate replace instead";
+    httpHeader = {'Content-Type': 'multipart/form-data'}
+    httpHeader.update(xAuthHeader)
+    url = "https://" + host + "/xyz/openbmc_project/certs/" + args.type.lower() + "/" + args.service.lower()
+    print("Deleting certificate url=" + url)
+    try:
+        resp = session.delete(url, headers=httpHeader)
+    except(requests.exceptions.Timeout):
+        return(connectionErrHandler(args.json, "Timeout", None))
+    except(requests.exceptions.ConnectionError) as err:
+        return connectionErrHandler(args.json, "ConnectionError", err)
+    if resp.status_code != 200:
+        print(resp.text)
+        return "Failed to delete the certificate"
+    else:
+       print("Delete complete.")
 
 def certificateReplace(host, args, session):
+
     """
          Called by certificate management function. replace server/client/
          authority certificates
@@ -2563,6 +2612,9 @@ def certificateReplace(host, args, session):
                       replace sub command
          @param session: the active session to use
     """
+    if not redfishSupportPresent(host, session):
+        return "Not supported, please use certificate update instead";
+
     httpHeader = {'Content-Type': 'application/json'}
     httpHeader.update(xAuthHeader)
     url = "";
@@ -2576,9 +2628,9 @@ def certificateReplace(host, args, session):
     replaceUrl = "https://" + host + \
         "/redfish/v1/CertificateService/Actions/CertificateService.ReplaceCertificate"
     try:
-        data ={"CertificateUri":{"@odata.id":url}, "CertificateType":"PEM", 
+        data ={"CertificateUri":{"@odata.id":url}, "CertificateType":"PEM",
             "CertificateString":cert}
-        resp = session.post(replaceUrl, headers=httpHeader, 
+        resp = session.post(replaceUrl, headers=httpHeader,
             json=data, verify=False)
     except(requests.exceptions.Timeout):
         return(connectionErrHandler(args.json, "Timeout", None))
@@ -2604,6 +2656,8 @@ def certificateDisplay(host, args, session):
                       display sub command
          @param session: the active session to use
     """
+    if not redfishSupportPresent(host, session):
+        return "Not supported";
 
     httpHeader = {'Content-Type': 'application/octet-stream'}
     httpHeader.update(xAuthHeader)
@@ -2629,16 +2683,19 @@ def certificateDisplay(host, args, session):
        print("Display complete.")
     return resp.text
 
-def certificateLocations(host, args, session):
+def certificateList(host, args, session):
     """
          Called by certificate management function.
          Example:
-         certificate locations
+         certificate list
          @param host: string, the hostname or IP address of the bmc
          @param args: contains additional arguments used by the certificate
-                      locations sub command
+                      list sub command
          @param session: the active session to use
     """
+    if not redfishSupportPresent(host, session):
+        return "Not supported";
+
     httpHeader = {'Content-Type': 'application/octet-stream'}
     httpHeader.update(xAuthHeader)
     url = "https://" + host + \
@@ -2653,7 +2710,7 @@ def certificateLocations(host, args, session):
         print(resp.text)
         return "Failed to list certificates"
     else:
-       print("Locations complete.")
+        print("List certificates complete.")
     return resp.text
 
 def certificateGenerateCSR(host, args, session):
@@ -2661,14 +2718,15 @@ def certificateGenerateCSR(host, args, session):
         Called by certificate management function. Generate CSR for server/
         client certificates
         Example:
-        certificate generatecsr server w3.ibm.com IBM US IBM IBM-UNIT NJ EC 2048 prime256v1
-        certificate generatecsr server w3.ibm.com IBM US IBM IBM-UNIT NJ RSA 2048 None
-        certificate generatecsr server w3.ibm.com IBM US IBM IBM-UNIT NJ EC 0 prime256v1
-        certificate generatecsr client w3.ibm.com IBM US IBM IBM-UNIT NJ RSA 2048 None
+        certificate generatecsr server NJ w3.ibm.com US IBM IBM-UNIT NY EC 2048 prime256v1 cp abc.com an.com,bm.com gn sn un in ClientAuthentication,CodeSigning
+        certificate generatecsr client NJ w3.ibm.com US IBM IBM-UNIT NY EC 2048 prime256v1 cp abc.com an.com,bm.com gn sn un in ClientAuthentication,CodeSigning
         @param host: string, the hostname or IP address of the bmc
         @param args: contains additional arguments used by the certificate replace sub command
         @param session: the active session to use
     """
+    if not redfishSupportPresent(host, session):
+        return "Not supported";
+
     httpHeader = {'Content-Type': 'application/octet-stream'}
     httpHeader.update(xAuthHeader)
     url = "";
@@ -2682,12 +2740,18 @@ def certificateGenerateCSR(host, args, session):
     generateCSRUrl = "https://" + host + \
         "/redfish/v1/CertificateService/Actions/CertificateService.GenerateCSR"
     try:
+        usage_list = args.keyUsage.split(",")
+        alt_name_list = args.alternativeNames.split(",")
         data ={"CertificateCollection":{"@odata.id":url},
             "CommonName":args.commonName, "City":args.city,
             "Country":args.country, "Organization":args.organization,
             "OrganizationalUnit":args.organizationUnit, "State":args.state,
             "KeyPairAlgorithm":args.keyPairAlgorithm,
-            "KeyBitLength":int(args.keyBitLength), "KeyCurveId":args.keyCurveId}
+            "KeyBitLength":int(args.keyBitLength), "KeyCurveId":args.keyCurveId,
+            "AlternativeNames":alt_name_list, "ContactPerson":args.contactPerson,
+            "Email":args.email, "GivenName":args.givenname, "Initials":args.initials,
+            "KeyUsage":usage_list, "Surname":args.surname,
+            "UnstructuredName":args.unstructuredname}
         resp = session.post(generateCSRUrl, headers=httpHeader,
             json=data, verify=False)
     except(requests.exceptions.Timeout):
@@ -4015,11 +4079,15 @@ def createCommandParser():
     certMgmt_subproc = parser_cert.add_subparsers(title='subcommands', description='valid certificate commands', help='sub-command help', dest='command')
 
     certUpdate = certMgmt_subproc.add_parser('update', help="Update the certificate")
-    certUpdate.add_argument('type', choices=['server', 'client', 'authority'],
-        help="certificate type to upload")
-    certUpdate.add_argument('-f', '--fileloc', required=True,
-        help="The absolute path to the certificate file")
+    certUpdate.add_argument('type', choices=['server', 'client', 'authority'], help="certificate type to update")
+    certUpdate.add_argument('service', choices=['https', 'ldap'], help="Service to update")
+    certUpdate.add_argument('-f', '--fileloc', required=True, help="The absolute path to the certificate file")
     certUpdate.set_defaults(func=certificateUpdate)
+
+    certDelete = certMgmt_subproc.add_parser('delete', help="Delete the certificate")
+    certDelete.add_argument('type', choices=['server', 'client', 'authority'], help="certificate type to delete")
+    certDelete.add_argument('service', choices=['https', 'ldap'], help="Service to delete the certificate")
+    certDelete.set_defaults(func=certificateDelete)
 
     certReplace = certMgmt_subproc.add_parser('replace',
         help="Replace the certificate")
@@ -4035,9 +4103,9 @@ def createCommandParser():
         help="certificate type to display")
     certDisplay.set_defaults(func=certificateDisplay)
 
-    certLocations = certMgmt_subproc.add_parser('locations',
+    certList = certMgmt_subproc.add_parser('list',
         help="Certificate list")
-    certLocations.set_defaults(func=certificateLocations)
+    certList.set_defaults(func=certificateList)
 
     certGenerateCSR = certMgmt_subproc.add_parser('generatecsr', help="Generate CSR")
     certGenerateCSR.add_argument('type', choices=['server', 'client', 'authority'],
@@ -4056,10 +4124,26 @@ def createCommandParser():
         help="The state, province, or region of the organization making the request.")
     certGenerateCSR.add_argument('keyPairAlgorithm',  choices=['RSA', 'EC'],
         help="The type of key pair for use with signing algorithms.")
-    certGenerateCSR.add_argument('keyBitLength',
+    certGenerateCSR.add_argument('keyBitLength', choices=['2048'],
         help="The length of the key in bits, if needed based on the value of the 'KeyPairAlgorithm' parameter.")
     certGenerateCSR.add_argument('keyCurveId',
         help="The curve ID to be used with the key, if needed based on the value of the 'KeyPairAlgorithm' parameter.")
+    certGenerateCSR.add_argument('contactPerson',
+        help="The name of the user making the request")
+    certGenerateCSR.add_argument('email',
+        help="The email address of the contact within the organization")
+    certGenerateCSR.add_argument('alternativeNames',
+        help="Additional hostnames of the component that is being secured")
+    certGenerateCSR.add_argument('givenname',
+        help="The given name of the user making the request")
+    certGenerateCSR.add_argument('surname',
+        help="The surname of the user making the request")
+    certGenerateCSR.add_argument('unstructuredname',
+        help="he unstructured name of the subject")
+    certGenerateCSR.add_argument('initials',
+        help="The initials of the user making the request")
+    certGenerateCSR.add_argument('keyUsage', help="The usage of the key contained in the certificate")
+
     certGenerateCSR.set_defaults(func=certificateGenerateCSR)
 
     # local users
@@ -4377,7 +4461,7 @@ def main(argv=None):
          main function for running the command line utility as a sub application
     """
     global toolVersion
-    toolVersion = "1.14"
+    toolVersion = "1.15"
     parser = createCommandParser()
     args = parser.parse_args(argv)
 
