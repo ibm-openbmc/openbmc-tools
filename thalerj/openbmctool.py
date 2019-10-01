@@ -2584,9 +2584,9 @@ def certificateReplace(host, args, session):
     replaceUrl = "https://" + host + \
         "/redfish/v1/CertificateService/Actions/CertificateService.ReplaceCertificate"
     try:
-        data ={"CertificateUri":{"@odata.id":url}, "CertificateType":"PEM", 
+        data ={"CertificateUri":{"@odata.id":url}, "CertificateType":"PEM",
             "CertificateString":cert}
-        resp = session.post(replaceUrl, headers=httpHeader, 
+        resp = session.post(replaceUrl, headers=httpHeader,
             json=data, verify=False)
     except(requests.exceptions.Timeout):
         return(connectionErrHandler(args.json, "Timeout", None))
@@ -3691,8 +3691,7 @@ def getThermalZones(host, args, session):
         return connectionErrHandler(args.json, "RequestException", err)
 
     if (res.status_code == 404):
-        return "No thermal control zones found or system is in a" + \
-            " powered off state"
+        return "No thermal control zones found"
 
     zonesDict = json.loads(res.text)
     if not zonesDict['data']:
@@ -3726,8 +3725,7 @@ def getThermalMode(host, args, session):
         return connectionErrHandler(args.json, "RequestException", err)
 
     if (res.status_code == 404):
-        return "Thermal control zone(" + args.zone + ") not found or" + \
-            " system is in a powered off state"
+        return "Thermal control zone(" + args.zone + ") not found"
 
     propsDict = json.loads(res.text)
     if not propsDict['data']:
@@ -3800,7 +3798,7 @@ def setThermalMode(host, args, session):
         return res.text
     else:
         return "Setting thermal control mode(" + args.mode + ")" + \
-            " not supported or operation not available(system powered off?)"
+            " not supported or operation not available"
 
 
 def createCommandParser():
@@ -4385,7 +4383,7 @@ def main(argv=None):
          main function for running the command line utility as a sub application
     """
     global toolVersion
-    toolVersion = "1.15"
+    toolVersion = "1.16"
     parser = createCommandParser()
     args = parser.parse_args(argv)
 
